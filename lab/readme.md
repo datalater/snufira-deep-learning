@@ -5,8 +5,323 @@ JMC 2017
 **Tensorflow API Guide**  
 \- "https://www.tensorflow.org/api_docs/python/tf/global_variables_initializer"
 
+---
+
+## RNN2 review
+
+### 실습 개요
+
++ character-level language modeling with Korean novel
++ 구운몽 텍스트를 학습하여 다음에 나올 character를 예측하여 소설을 생성하는 RNN 모델을 만든다.
+
+> **Note**: 이번 실습에서 다루는 한글의 character-level은 모든 자모 단위이다. ex. 구 -> {ㄱ,ㅜ}
+
+### Data pre-processing :: step(1) :: characcter 단위
+
++ 한글 파일(구운몽 텍스트)을 읽어들이고, `character 단위`로 나눈다.
+  + 한글 파일의 인코딩을 다르게 하면 자동으로 나눠지게 된다. (한 글자를 구분하는 단위로 낙지처럼 생긴 문자가 생성됨)
+
+### Data pre-processing :: step(2) :: vocabulary dictionary
+
++ 나눠진 각각의 character를 unicode로 변환하여 `vocabulary dictionary`를 구성한다.
+  + ex. ㅎ -> u'\u3160' -> 0
+  + ex. {'ㅎ':0}
+
+### Data pre-processing :: step(3) :: training input x
+
++ 구성한 vocabulary를 기반으로 구운몽 텍스트를 character index로 모두 변환하여 `training input x`를 얻는다.
+
+### Data pre-processing :: step(4) :: ground-truth y
+
++ training input x로부터 `ground-truth y`를 구성한다.
+  + 우리의 목표는 x_0, ..., x_{t-1}를 받아 다음 character인 x_t를 예측하는 것이다.
+  + 따라서 y_t = x_{t+1}로 세팅하면 된다.
+  + 코드 관점에서 보면 X[n]을 Y[n+1]로 대응시키면 된다.
+  + 실습 코드에서 Y[0]은 X[-1]로 대입했는데, 다른 값으로 해도 크게 상관없다고 함.
+
+### Data pre-processing :: step(5) batch 단위
+
++ batch 단위로 training 해야 하므로, x와 y를 `batch 단위`로 나눠놓는다.
+  + 만약 batch 단위로 training 하지 않고, 전체 데이터를 한꺼번에 training 하게 되면,
+  + sequence length가 무진장 길어지게 된다.
+  + 즉, 데이터의 양이 무진장 길어지게 된다는 것이다.
+  + 그런데 hidden state의 개수는 우리가 이미 정해주었다. (ex. rnn_size = 128)
+  + 즉, 많은 양의 데이터(=정보)를 representation하기에 hidden state 개수가 고정되어 있으므로 부적합하다.
+
+> **Note:** 그러면 많은 양의 데이터를 representation 할 수 있도록 hidden_state의 개수를 크게 늘리면 어떨까?  
+> 좋지 않다. 왜냐하면 hidden_state가 커지는 만큼 parameter가 많아지고, parameter가 너무 많으면 optimization이 힘들어지기 때문이다.
+
+> **Note:** 그래서 RNN 류의 네트워크 (vanila RNN, GRU RNN)는 long sequence data를 처리하기에는 부적합하다는 논의가 현재 이어지고 있다.
+
+#### 개념 구분하기 :: training example / batch_size / num_batches / sequence_length
+
++ sequence_length : 하나의 sequence에 포함되는 token의 개수
++ example : sequence 1개
++ batch_size : example의 개수 (=sequence의 개수)
 
 ---
+
++ 전체 데이터 = [1, 55, 32, 11, ....]
+
+> **Note:** 전체 데이터를 구성하고 있는 index는 각각의 character를 뜻한다. 아래 설명에서 chacter와 index를 같은 의미로 썼다.
+
++ example = [c1, c2, c3, ..., c100]
+  + 여기서 example은 1개의 example을 뜻한다.
+  + example은 전체 데이터 중 일부 character를 추출한 것이다.
+  + example에 포함된 chacter의 개수를 정하는 것이 seq_length(sequence length)이다.
++ batch_size = 32
+  + batch size란 하나의 batch에 몇 개의 example을 넣을 것인지를 말한다.
+  + batch_size =32 라면 100개의 character를 담고 있는 example을 32개 뽑은 것이다.
+  + 즉, 하나의 batch에는 character 3,200개가 들어간다.
+
+> **Note:** 하나의 example에 포함되는 token의 개수 = sequence_length
+
++ num_batches = int( 전체데이터.size / (batch_size * seq_length) )
+  + if,
+  + 전체데이터.size = 500,000
+  + batch_size = 32 (hyperparameter)
+  + seq_length = 100 (hyperparameter)
+  + num_batches = int(500,000 / (3,200))
+
+### 모델링 :: step(6-1) :: TensorFlow Graph :: x_i, y_i
+
++ x_i = (batch_size, seq_len)
++ y_i = (batch_size, seq_len)
+
+```python
+input_data = tf.placeholder(tf.int32, [batch_size, seq_length])
+targets    = tf.placeholder(tf.int32, [batch_size, seq_length])
+```
+
+### 모델링 :: step(6-2) :: TensorFlow Graph :: embedding
+
++ x_i를 character embedding space d로 projection 하고, RNN의 input에 맞게 shape를 조정한다.
+  + character embedding space : vocabulary_dictionary에 저장되어 있는 key 값의 개수만큼의 차원을 갖고 있는 space
+
+---
+
+## RNN2 20170830 나세일 조교 실습
+
+### MLP p.5
+
++ MLP란 affine transformation이다.
++ `affine transformation이란 선형함수를 만드는 것`이다.
++ 슬라이드에 나와 있는 것이 MLP의 기본 구조
++ 딥러닝에서 affine transformation과 같은 의미로 통용되는 것
+  + fully-connected layer
+  + linear transformation
+  + projection
+
+### MLP p.6
+
++ 강조 : '마지막 layer는 ...'
+
+### MLP p.7
+
++ 첫번째 layer의 차원을 d차원으로 정한다. (연구자가 정하는 hyperparameter)
++ 첫번째 layer는 input의 차원인 h * d차원
+
+### p.8
+
++ input size가 달라지면 parameter size도 달라진다.
++ 작은 이미지를 학습시키면 parameter size가 작으면 되는데
++ 큰 이미지를 학습시키면 parameter size가 커야 한다.
++ 즉, training exmaple마다 parameter size가 달라진다.
++ 우리가 원하는 것은 이게 아님. 구현 상의 문제점도 있고.
++ `모델의 parameter 수는 input size와 관계없이 항상 고정되어야 한다`.
+
+### p.9
+
++ 이것을 해결하는 방법
++ input size를 고정하기 위해 이미지의 크기를 같은 사이즈로 resize 또는 crop 해준다.
++ 보통 이미지 작업 때 해주는 작업.
+
+### p.10
+
++ 데이터 소스가 이미지가 아니라 텍스트라면?
++ 텍스트의 길이를 똑같이 맞춰주려고 한다면, 정보의 손실이 많아진다.
+  + ex. I am a boy. -> I am
++ 이미지는 사이즈를 바꿔도 정보의 손실이 많지 않다.
++ MLP℠s training data가 다른 것, 즉 variable length data를 제대로 학습할 수가 없다.
++ 그런데 RNN은 variable length data를 제대로 핸들링 할 수 있다.
++ `RNN은 가변 길이 데이터를 처리할 수 있기 때문에 사용한다`.
+
+### ṗ.11
+
++ RNN의 구성 : input 과 hidden state
++ input은 time step 단위로 나눠진다.
++ time step으로 나눈 데이터를 tokenized data라고 한다.
+  + ex. "I am a boy"에서 첫 번째 token은 "I"가 된다.
++ time step마다 hidden state가 update 된다.
+
+### p.12
+
++ $h_t = f(x_t, h_{t-1})$
+  + 이전 hidden state와 현재 state의 input 데이터를 받는다.
++ hidden state가 갖는 정보 :
+  + h0 : 첫번째 token에 대한 정보
+  + h1 : 첫번째 hidden state(=첫번째 input에 대한 정보)와 두번째 input을 받는다.
+  + h_t : t번째까지의 모든 input에 대한 정보를 담고 있음
++ 순서가 유의미한 데이터를 핸들링할 때 RNN이 많이 쓰인다.
+
+### p.13
+
++ 현재 상태의 input을 W1을 통해 projection하고
++ 이전 상태의 hidden state를 W2를 통해 projection 하고
++ b를 더한 후
++ 전체에 대해 hyper tangent 함수(activation function)를 적용한다.
+
+### p.14
+
++ 각 time step이 가지는 hidden state의 의미를 알았으니 그림을 살펴보면 이해할 수 있을 것이다.
++ image captioning
+  + 주어진 image를 잘 설명하는 자연어 text를 생성하는 것
+  + input은 고정 크기
+  + 이미지를 설명하는 text는 이미지마다 달라지므로 RNN을 사용한다.
++ video classification
+  + 마지막 hidden state만을 사용해서 결과를 낸다.
+  + 처음부터 끝까지 다 본 후에 operation 하는 것
++ machine translation
+  + input의 마지막 hidden state(한국어를 한 문장을 잘 설명하는)로 시작해서 영어로 번역한다.
++ Language modeling
+  + 우리가 실습 때 할 것
+
+### p.16~17 LM
+
++ token을 어떤 단위로 나누느냐에 따라 LM을 다르게 부른다.
++ show me가 token으로 온 후에 다음에 뭐가 올 것인지 예측하는 게 word-level Language Modeling
+
+
+### p.19 한국어 character-level LM
+
++ 한국어는 영어와 달리 무엇을 character로 볼지 애매함
++ 이번 실습에서는 한글을 자모단위로 나눠서, 각각의 자음과 모음을 하나의 character로 볼 것임
++ 첫번째 token 다음에 나오는 token, 그것 다음에 나오는 token, 다음에 나오는 token... 다음 token.. 이런 식으로 generate하는 모델을 만들 것임
+
+---
+
+## 실습
+
++ 우리가 사용할 데이터
++ 구운몽 한글 파일 `http://localhost:8888/edit/data/nine_dreams/ninedreams_utf8.txt`
++ 우리가 사용할 python 파일
+  + `http://localhost:8888/notebooks/4_kor_char_rnn_train.ipynb`
+  + `http://localhost:8888/edit/TextLoader.py`
+  + `http://localhost:8888/notebooks/4_kor_char_rnn_inference.ipynb`
+
+### pickle (python)
+
++ pickle : 파이썬 내부에 쓰던 오브젝트를 디스크에 저장해놓는다.
++ pickle을 이용하면 파이썬 파일로 작성한 변수를 작업 메모리에 올려놓을 수 있다.
+
+```python
+a = 1
+b = [12,3,2,42]
+c = {"dsf":"sdfs", "qwe": "sdfsa"}
+
+with open("b_value.pkl", "w") asf:
+    pickle.dump(b, f)
+print a, b, c
+
+# 아래처럼 딕셔너리로 모든 오브젝트를 한번에 넣어두면 편하게 사용할 수 있다. 튜플은 순서가 바뀌므로 딕셔너리가 편리하다.
+total = {}
+total["a_value"] = a
+total["b_value"] = b
+pickle.dump(total, f)
+```
+
++ 데이터 pre-processing한 것을 저장해 둔 다음에 training할 때 pickle을 많이 사용한다.
+
+### p.19~ 코드 설명 (rec 1:07:00)
+
+
+### p.22
+
++ X : 구운몽 소설을 character의 index로 바꾼 것
++ Y : X에 대응되는 매칭되는 character
+  + X의 0에 대응되는 character는 Y에서 1
+  + X의 0, 1, 2에 대응되는 character는 Y에서 32
+  + 우리가 예측한 값과 실제 Y의 차이를 Loss로 구성한다.
++ $y_t= x_{t+1}$ Y는 X를 한 칸씩 밀어버리면 된다.
+
+### p.24
+
++ pair 하나가, 하나의 example
++ 그 example을 batch size 만큼 모아두는 게, 하나의 batch
+
+### p.25 step(6-1) 모델링
+
++ 이전까지는 TextLoader.py, 즉 pre-processing 이었음
+
+### p.26 step(6-2)
+
++ $x_i$ = (b, l) # batch * sequence_length
++ x[3, 4] = [ 0, 0, 0, .., 1, 0, 0] # 3번째 batch의 3번째 token
++ x[3, 4] = 43 (지금은 이렇게 되어 있음)
++ vocab_size = v
++ x[3, 4] = W X (v) = d
+  + W : embedding matrix
+  + v : one_hot vector
+  + W의 각 i열은, v의 i번째 index에 해당하는 캐릭터를 나타내는 임베딩이라고 한다.
+  + W의 값을 학습할 때도 backprop해서 학습한다.
+  + 임베딩 매트릭스의 각 칼럼은, 각 캐릭터의 의미를 유의미하게 캐치하는 칼럼 벡터이다.
+
+> **Note:** 단어마다 embedding matrix가 있는 것이 word2vector. ex) man - woman + king = queen
+
++ index = (d) dimension
++ (index) = seq_len # seq_len 만큼 index 개수가 있다.
++ batch * seq_len = (batch * seq_len * d)
+
+### Q. RNN size
+
++ RNN의 구성요소
+  + x_t = (k)
+  + h = (d) = [0, 0, 0, ..., 0] (h0 초기화)
+    + h1 = w1*x_t + w2*h0 + b
+      + w1*x_t = (d)
+      + w2*h0 = (d)
+      + b = (d)
+    + h2 = w1*x1 + w2*h1 + b
+  + w1 = (d, k)
+  + w2 = (d, d)
+  + b = (d)
+
+---
+
++ h의 dimension이 커질수록 input 정보를 담을 수 있는 양이 커지는 것이다.
++ 그런데 문제는 h의 dimension이 너무 크면 담고 있는 정보가 너무 많아서 optimization이 힘들어진다.
++ parameter가 너무 많으면 optimization이 힘들어지기 때문이다.
+
+---
+
+### p.27 step(6-3)
+
++ rec 2:23:00
+
+### p.29 step(6-5)
+
++ 파란색 박스에 있는 input을 RNN에 태운 다음
++ h_t = rrn_size
++ softmax_w = (rnn_size, vocab_size)
++ prob = (vocab_size)
++ [0.01, 0.3, 0.2, 0.1, ...]  # softmax 취한 결과, 각 다음 단어가 나올 확률 분포
+
+### inference
+
++ ckpt에서 들고 온 것
+  + embedding
+  + RNN
+  + softmax_w(b)
++
+
+### RNN이 생성해낸 글의 의미
+
++ rec 2:41:00
+
+---
+---
+
+## Lecture note
 
 ### 01 Tensor : 데이터 저장의 기본 단위이며 값과 차원(형태)을 가진다.
 
