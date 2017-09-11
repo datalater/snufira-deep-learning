@@ -5,8 +5,54 @@ TensorFlow Practice
 
 ---
 
-## 03 TensorFlow Basic ()
+## 03 TensorFlow Basic (with scikit-learn)
 
+---
+
+### 개요
+
+#### 0. 데이터의 차원을 계산한다
+
++ input 데이터 : 28 by 28 이미지이므로 784차원이다.
++ prediction : class가 총 10개이므로 10차원이다.
+
+#### 0. 데이터를 가져온다.
+
++ 코드0-1. dataset을 load 한다.
++ 코드0-2. dataset의 data와 target shape를 출력해본다.
++ 코드0-3. 3번째 feature만 사용해서 input 데이터를 구성하고, label은 전체 target 데이터 모두를 사용한다.
++ 코드0-4. input 데이터와 label 데이터는 각각 전체 데이터에서 -20번째까지 train으로, 나머지는 test로 구성한다.
+
+#### 1. 모델을 세운다
+
++ 모델
+  + `logit = wx + b`
+  + `prediction = softmax(logit)`
+
++ 코드1. 모델에 input 데이터를 넣기 위해 placeholder로 선언한다.
++ 코드2. 모델의 parameter를 Variable로 선언한다.
++ 코드3. 모델에 parameter와 input 데이터를 넣어서 parameter가 input 데이터의 정보를 갖고 있게 한 후, 모델의 prediction의 값을 확률 값으로 바꾼다.
+
+#### 2. 모델의 cost를 계산한 후 minimize 한다
+
++ 코드4. 모델의 prediction(=`logits`)과 true label(=`onehot_labels`) 사이의 cost를 cross entropy로 구한다.
++ 코드5. optimzer 알고리즘을 사용해서 cost를 minimize 한다.
+
+#### 3. 모델의 accurracy를 정의하기 위해 onehot label과 prediction을 비교한다
+
++ 코드6. predictions 벡터와 labels 벡터를 대상으로 각 row마다 값이 가장 큰 column의 index를 구한다.
++ 코드7. 구한 index의 값들이 서로 같은지 boolean으로 비교한다.
++ 코드8. 숫자로 표현된 boolean 벡터의 평균을 계산하여 accuracy를 구한다.
+
+#### 4. 모델을 Train 한다
+
++ 코드9. train_step을 정의한다.
++ 코드10. Session()을 with 절로 선언하고 Variable을 초기화하여 run 한다.
++ 코드11. train_step 만큼 반복문을 선언하고 batch 단위로 input 데이터와 label을 가져온다.
++ 코드12. feed를 정의한 다음, `sess.run()`에 fetch할 tensor를 첫 번째 인자로 넣고 두 번째 인자로 feed를 넣는다.
+
+
+---
 ---
 
 ## 02 TensorFlow Basic (MNIST)
