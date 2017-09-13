@@ -5,6 +5,15 @@
 
 ---
 
+## 20170906 GAN
+
+### Game Theory
+
++ 
+
+
+---
+
 ## Summary
 
 
@@ -17,7 +26,7 @@
 p.15
 
 + Q.how many boxes are behind the tree?
-+ 단순한 게 미덕이라고 했으니 1개라고 해야 하나?
++ 단순한 게 미덕이라고 했으니 1개라고 해야 하나?n
 
 p.16
 
