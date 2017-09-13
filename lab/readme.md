@@ -7,6 +7,13 @@ JMC 2017
 
 ---
 
+## Kaggle: Titanic
+
+
+
+
+---
+
 ## RNN2 review
 
 ### 실습 개요
